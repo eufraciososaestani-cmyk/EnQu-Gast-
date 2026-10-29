@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: enquegaste
+    runtime: node
+    plan: starter
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /salud
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: enquegaste-db
+          property: connectionString
+      - key: SESSION_SECRET
+        generateValue: true
+      # Correo con el que vas a crear tu cuenta la primera vez (solo ese correo puede crearla)
+      - key: ADMIN_EMAIL
+        sync: false
+
+databases:
+  - name: enquegaste-db
+    databaseName: enquegaste
+    plan: basic-256mb

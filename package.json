@@ -1,0 +1,15 @@
+{
+  "name": "enquegaste",
+  "version": "1.0.0",
+  "description": "EnQuéGasté — plataforma multiusuario para controlar gastos, ingresos, presupuestos y ahorro",
+  "main": "server.js",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test --test-concurrency=1 test/api.test.js test/primer-uso.test.js"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "pg": "^8.13.0"
+  }
+}

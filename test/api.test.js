@@ -47,10 +47,8 @@ test('la cuenta principal arranca con su cuenta de efectivo y la sesión se renu
   assert.equal((await new Cliente().get('/api/config/publica')).data.primer_uso, false);
 });
 
-test('el registro viene cerrado: solo se abre si el admin lo habilita', async () => {
-  await admin.put('/api/admin/configuracion', { registro_abierto: false });
-  assert.equal((await new Cliente().post('/api/auth/registro', { nombre: 'Z', email: `z0-${suf}@ej.com`, password: '12345678' })).status, 403);
-  assert.equal((await admin.put('/api/admin/configuracion', { registro_abierto: true })).status, 200);
+test('el registro viene abierto: cada persona se crea su cuenta', async () => {
+  assert.equal((await new Cliente().get('/api/config/publica')).data.registro_abierto, true);
 });
 
 test('registro de dos usuarios con datos separados', async () => {
@@ -232,7 +230,7 @@ test('configuración editable: categorías globales y registro cerrado', async (
   await admin.put('/api/admin/configuracion', { registro_abierto: false });
   try {
     assert.equal((await new Cliente().post('/api/auth/registro', { nombre: 'Z', email: `z-${suf}@ej.com`, password: '12345678' })).status, 403);
-  } finally { await admin.put('/api/admin/configuracion', { registro_abierto: false }); }
+  } finally { await admin.put('/api/admin/configuracion', { registro_abierto: true }); }
 
   const aud = (await admin.get('/api/admin/auditoria')).data;
   assert.ok(aud.some((a) => a.accion === 'configuracion'));

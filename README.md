@@ -2,7 +2,7 @@
 
 Controlá tus gastos. Organizá tu dinero. Ahorrá más.
 
-App personal para registrar gastos, ingresos y transferencias, con cuentas y tarjetas, presupuestos, objetivos de ahorro y vencimientos. Es una plataforma propia e independiente: tiene su propio repositorio, su propio servidor y su propia base de datos.
+App para registrar gastos, ingresos y transferencias, con cuentas y tarjetas, presupuestos, objetivos de ahorro y vencimientos. Cada persona que la usa se crea su propia cuenta y ve solo sus números. Es una plataforma propia e independiente: tiene su propio repositorio, su propio servidor y su propia base de datos.
 
 ## Usarla todos los días desde el celular
 
@@ -15,13 +15,11 @@ Si mantenés apretado el ícono en Android aparecen los atajos **Agregar gasto**
 
 La sesión se renueva cada vez que abrís la app, así que no tenés que volver a ingresar mientras la uses seguido (se cierra sola después de 14 días sin abrirla). Si no hay internet, la app abre igual y avisa que no hay conexión.
 
-## Primer uso
+## Cuentas: cada persona tiene la suya
 
-La primera vez que se abre la app, en lugar del ingreso aparece **Creá tu cuenta**. Esa primera cuenta es la principal (administrador) y la contraseña la elegís vos ahí mismo: no hace falta ponerla en ninguna variable.
+Para entrar hay que tener una cuenta. En la pantalla de ingreso, quien no tiene cuenta toca **Crear una cuenta**, pone su nombre, correo y contraseña, y entra. Pueden usarla todas las personas que quieran: cada una ve solo sus propios movimientos, cuentas, presupuestos y ahorros.
 
-Si está definida la variable `ADMIN_EMAIL`, solo ese correo puede crear la cuenta principal. Así nadie más puede adelantarse entre que se publica la app y la abrís por primera vez.
-
-Después de eso el registro queda **cerrado**: nadie más puede crearse una cuenta. Si algún día querés sumar a alguien (por ejemplo, tu pareja), lo hacés desde **Administración → Usuarios** o abriendo el registro en **Administración → Ajustes**. Cada persona ve solo sus propios números.
+La cuenta de administrador es la del correo definido en `ADMIN_EMAIL` (si no está definido, la primera que se crea). El administrador ve la lista de usuarios, puede desactivarlos o generarles una contraseña temporal si se la olvidan, y puede cerrar el registro desde **Administración → Ajustes** si en algún momento no quiere más cuentas nuevas. No ve los movimientos ni los saldos de nadie.
 
 ## Qué incluye
 
@@ -42,7 +40,7 @@ Después de eso el registro queda **cerrado**: nadie más puede crearse una cuen
 `render.yaml` describe todo: la web (`enquegaste`) y su base PostgreSQL (`enquegaste-db`), separadas de cualquier otro proyecto.
 
 1. En Render: **New → Blueprint**, elegí este repositorio.
-2. Cuando te pida `ADMIN_EMAIL`, poné el correo con el que vas a ingresar.
+2. Cuando te pida `ADMIN_EMAIL`, poné tu correo: cuando te crees la cuenta con ese correo, vas a ser el administrador.
 3. Esperá el primer despliegue, entrá a la dirección que te da Render y creá tu cuenta.
 
 Los planes (`starter` para la web y `basic-256mb` para la base) son pagos: la app está siempre lista y la base no vence. Con el plan gratis la web se “duerme” y tarda cerca de un minuto en abrir, y la base gratuita se borra a los 30 días, así que no conviene para el uso diario.

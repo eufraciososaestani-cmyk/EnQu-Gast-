@@ -98,19 +98,9 @@ function mostrarAcceso(modo = 'login', mensaje = '') {
   cerrarModal();
   const raiz = $('#raiz');
   const eslogan = S.publica.eslogan || 'Controlá tus gastos. Organizá tu dinero. Ahorrá más.';
-  if (modo === 'login' && S.publica.primer_uso) modo = 'primera';
+  if (modo === 'login' && S.publica.primer_uso) modo = 'registro'; // todavía nadie creó su cuenta
   let form;
-  if (modo === 'primera') {
-    form = h`<form id="f-acceso" novalidate>
-      <h2 style="margin-bottom:8px">Creá tu cuenta</h2>
-      <p style="color:var(--gris);margin-bottom:16px">Es la primera vez que se abre EnQuéGasté. Esta va a ser tu cuenta principal, con acceso a todo.</p>
-      <label class="campo"><span>Nombre</span><input type="text" name="nombre" autocomplete="name" required maxlength="80"></label>
-      <label class="campo"><span>Correo electrónico</span><input type="email" name="email" autocomplete="email" required></label>
-      <label class="campo"><span>Contraseña</span><input type="password" name="password" autocomplete="new-password" required minlength="8"><small>Mínimo 8 caracteres.</small></label>
-      <p class="error-form" id="err" hidden></p>
-      <button class="btn primario bloque">Crear cuenta y empezar</button>
-    </form>`;
-  } else if (modo === 'login') {
+  if (modo === 'login') {
     form = h`<form id="f-acceso" novalidate>
       <h2 style="margin-bottom:16px">Ingresá a tu cuenta</h2>
       ${mensaje ? h`<p class="error-form">${mensaje}</p>` : ''}
@@ -118,10 +108,13 @@ function mostrarAcceso(modo = 'login', mensaje = '') {
       <label class="campo"><span>Contraseña</span><input type="password" name="password" autocomplete="current-password" required></label>
       <p class="error-form" id="err" hidden></p>
       <button class="btn primario bloque">Ingresar</button>
-    </form>`;
+    </form>
+    ${S.publica.registro_abierto ? h`<p style="text-align:center;color:var(--gris);margin:18px 0 10px">¿Todavía no tenés cuenta?</p>
+      <button type="button" class="btn bloque" data-modo="registro">Crear una cuenta</button>` : ''}`;
   } else if (modo === 'registro') {
     form = h`<form id="f-acceso" novalidate>
-      <h2 style="margin-bottom:16px">Creá tu cuenta</h2>
+      <h2 style="margin-bottom:8px">Creá tu cuenta</h2>
+      <p style="color:var(--gris);margin-bottom:16px">Cada persona tiene su propia cuenta. Tus movimientos y saldos solo los ves vos.</p>
       <label class="campo"><span>Nombre</span><input type="text" name="nombre" autocomplete="name" required maxlength="80"></label>
       <label class="campo"><span>Correo electrónico</span><input type="email" name="email" autocomplete="email" required></label>
       <label class="campo"><span>Contraseña</span><input type="password" name="password" autocomplete="new-password" required minlength="8"><small>Mínimo 8 caracteres.</small></label>
@@ -147,9 +140,9 @@ function mostrarAcceso(modo = 'login', mensaje = '') {
     </form>`;
   }
   const enlaces = modo === 'login'
-    ? h`<button type="button" data-modo="olvide">Olvidé mi contraseña</button>${S.publica.registro_abierto ? h` · <button type="button" data-modo="registro">Crear una cuenta</button>` : ''}`
+    ? h`<button type="button" data-modo="olvide">Olvidé mi contraseña</button>`
     : modo === 'cambiar' ? h`<button type="button" id="salir-acceso">Salir</button>`
-      : modo === 'primera' ? ''
+      : S.publica.primer_uso ? ''
         : h`<button type="button" data-modo="login">Ya tengo cuenta</button>`;
 
   raiz.innerHTML = h`<main class="acceso"><div class="acceso-caja">
@@ -173,7 +166,7 @@ function mostrarAcceso(modo = 'login', mensaje = '') {
         f.innerHTML = h`<h2 style="margin-bottom:8px">Pedido enviado</h2><p style="color:var(--gris)">Si el correo está registrado, el administrador verá tu pedido y te va a pasar una contraseña temporal.</p>`.s;
         return;
       }
-      const url = { login: '/api/auth/login', registro: '/api/auth/registro', primera: '/api/auth/registro', cambiar: '/api/auth/password' }[modo];
+      const url = { login: '/api/auth/login', registro: '/api/auth/registro', cambiar: '/api/auth/password' }[modo];
       const r = await POST(url, datos);
       S.usuario = r.usuario;
       S.publica.primer_uso = false;

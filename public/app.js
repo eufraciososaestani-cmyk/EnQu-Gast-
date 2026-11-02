@@ -189,6 +189,7 @@ async function cerrarSesion() {
 const RUTAS = [
   { id: 'inicio', nombre: 'Inicio', ico: '🏠' },
   { id: 'movimientos', nombre: 'Movimientos', ico: '💸' },
+  { id: 'capturas', nombre: 'Cargar capturas', corto: 'Capturas', ico: '📷' },
   { id: 'cuentas', nombre: 'Cuentas y tarjetas', corto: 'Cuentas', ico: '🏦' },
   { id: 'estadisticas', nombre: 'Estadísticas', ico: '📊' },
   { id: 'presupuestos', nombre: 'Presupuestos y ahorro', corto: 'Presupuestos', ico: '🎯' },
@@ -203,7 +204,8 @@ function marco(contenido) {
   const rutas = RUTAS.filter((r) => !r.admin || S.usuario.rol === 'admin');
   const nav = (r) => h`<a class="nav-item" href="#/${r.id}" ${actual === r.id ? raw('aria-current="page"') : ''}><span class="ico" aria-hidden="true">${r.ico}</span>${r.nombre}</a>`;
   const tab = (r) => h`<a href="#/${r.id}" ${actual === r.id ? raw('aria-current="page"') : ''}><span class="ico" aria-hidden="true">${r.ico}</span>${r.corto || r.nombre}</a>`;
-  const enMas = !['inicio', 'movimientos', 'presupuestos'].includes(actual);
+  const ruta = (id) => RUTAS.find((r) => r.id === id);
+  const enMas = !['inicio', 'movimientos', 'capturas'].includes(actual);
   return h`<div class="app">
     <nav class="lateral" aria-label="Secciones">
       <div class="marca">${LOGO(34)}EnQuéGasté</div>
@@ -215,9 +217,9 @@ function marco(contenido) {
     </nav>
     <main class="principal" id="vista">${contenido}</main>
     <nav class="barra-inferior" aria-label="Secciones">
-      ${tab(RUTAS[0])}${tab(RUTAS[1])}
+      ${tab(ruta('inicio'))}${tab(ruta('movimientos'))}
       <button class="moneda-btn" data-agregar="gasto" aria-label="Agregar gasto">+</button>
-      ${tab(RUTAS[4])}
+      ${tab(ruta('capturas'))}
       <button class="tab" id="tab-mas" ${enMas ? raw('aria-current="page"') : ''}><span class="ico" aria-hidden="true">☰</span>Más</button>
     </nav>
   </div>`;
@@ -516,6 +518,7 @@ VISTAS.inicio = async (el) => {
     <div class="atajos">
       <button class="btn moneda" data-agregar="gasto">+ Agregar gasto</button>
       <button class="btn" data-agregar="ingreso">+ Agregar ingreso</button>
+      <a class="btn ancho" href="#/capturas">📷 Cargar capturas</a>
       <a class="btn" href="#/movimientos">Ver movimientos</a>
       <a class="btn" href="#/estadisticas">Ver estadísticas</a>
     </div>
@@ -582,6 +585,152 @@ VISTAS.movimientos = async (el) => {
   $('[name=q]', f).addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => { aplicar(); setTimeout(() => { const i = $('[name=q]'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }, 80); }, 450); });
   $$('[data-agregar]', el).forEach((b) => b.addEventListener('click', () => formMovimiento(null, b.dataset.agregar)));
 };
+
+// ---------- capturas: leer comprobantes desde fotos o capturas de pantalla ----------
+// Achica la imagen en el celular antes de enviarla: viaja más rápido y alcanza para leer el texto.
+function achicarImagen(archivo, lado = 1568) {
+  return new Promise((resolve, reject) => {
+    const fallo = () => reject(new Error('No se pudo abrir la imagen. Probá con una captura de pantalla o una foto en JPG.'));
+    const lector = new FileReader();
+    lector.onerror = fallo;
+    lector.onload = () => {
+      const img = new Image();
+      img.onerror = fallo;
+      img.onload = () => {
+        const k = Math.min(1, lado / Math.max(img.naturalWidth, img.naturalHeight));
+        const lienzo = document.createElement('canvas');
+        lienzo.width = Math.round(img.naturalWidth * k); lienzo.height = Math.round(img.naturalHeight * k);
+        const g = lienzo.getContext('2d');
+        g.fillStyle = '#fff'; g.fillRect(0, 0, lienzo.width, lienzo.height);
+        g.drawImage(img, 0, 0, lienzo.width, lienzo.height);
+        resolve(lienzo.toDataURL('image/jpeg', 0.85));
+      };
+      img.src = lector.result;
+    };
+    lector.readAsDataURL(archivo);
+  });
+}
+
+let capturasLeidas = null; // lo último que se leyó, hasta que se guarda o se descarta
+VISTAS.capturas = async (el) => {
+  const { activa } = await GET('/api/capturas/estado');
+  el.innerHTML = h`
+    ${cabecera('Cargar capturas')}
+    <section class="panel">
+      <p style="margin-bottom:14px">Subí fotos o capturas de pantalla de tus comprobantes: tickets, transferencias, Mercado Pago, home banking o resúmenes de tarjeta. La app lee los gastos e ingresos y te los deja listos para sumar a tu resumen.</p>
+      ${activa ? h`<input type="file" id="archivos" accept="image/*" multiple hidden>
+        <button class="btn moneda bloque" id="elegir" style="min-height:52px">📷 Elegir fotos o capturas</button>
+        <p style="color:var(--gris);font-size:.85rem;margin-top:8px;text-align:center">Podés elegir varias a la vez.</p>`
+      : h`<p class="vacio" style="padding:10px">${S.usuario.rol === 'admin'
+        ? h`La lectura automática todavía no está activada. Activala en <a href="#/admin" id="ir-ajustes">Administración → Ajustes</a>.`
+        : 'La lectura automática todavía no está activada. Pedíselo al administrador.'}</p>`}
+    </section>
+    <div id="lectura"></div>`.s;
+  const cont = $('#lectura', el);
+  if (capturasLeidas) pintarLectura(cont);
+  const ir = $('#ir-ajustes', el); if (ir) ir.addEventListener('click', () => { pestanaAdmin = 'ajustes'; });
+  if (!activa) return;
+  const input = $('#archivos', el), boton = $('#elegir', el);
+  boton.addEventListener('click', () => input.click());
+  input.addEventListener('change', () => {
+    const lista = [...input.files]; input.value = '';
+    if (lista.length) leerCapturas(lista, cont, boton);
+  });
+};
+
+async function leerCapturas(archivos, cont, boton) {
+  boton.disabled = true;
+  const items = [], avisos = [];
+  const quien = (archivo, texto) => (archivos.length > 1 ? `${archivo.name}: ${texto}` : texto);
+  for (const [i, archivo] of archivos.entries()) {
+    cont.innerHTML = h`<section class="panel" style="margin-top:16px"><p class="cargando" role="status">Leyendo ${archivos.length > 1 ? `la captura ${i + 1} de ${archivos.length}` : 'la captura'}… puede tardar unos segundos.</p></section>`.s;
+    try {
+      const r = await POST('/api/capturas/leer', { imagen: await achicarImagen(archivo) });
+      for (const m of r.movimientos) items.push({ ...m, incluir: !m.posible_repetido });
+      if (r.aviso) avisos.push(quien(archivo, r.aviso));
+      else if (!r.movimientos.length) avisos.push(quien(archivo, 'no encontré movimientos de dinero.'));
+    } catch (e) {
+      avisos.push(quien(archivo, e.message));
+      if (e.sinConexion) break;
+    }
+  }
+  boton.disabled = false;
+  capturasLeidas = { items, avisos };
+  if (cont.isConnected) pintarLectura(cont);
+}
+
+function pintarLectura(cont) {
+  const { items, avisos } = capturasLeidas;
+  const sel = (a, b) => (a === b ? raw('selected') : '');
+  const signo = (m) => `${m.tipo === 'gasto' ? '−' : '+'}${dinero(m.importe || 0, m.moneda)}`;
+  const tarjeta = (m, i) => h`<div class="captura-item ${m.incluir ? '' : 'excluida'}" data-item="${i}">
+    <div class="cab">
+      <label class="check"><input type="checkbox" data-campo="incluir" ${m.incluir ? raw('checked') : ''}> Cargar este</label>
+      <b class="imp ${m.tipo}">${signo(m)}</b>
+    </div>
+    ${m.posible_repetido ? h`<p style="margin-bottom:10px"><span class="etiqueta alerta">Posible repetido</span> <small style="color:var(--gris)">Ya tenés un ${m.tipo} por ese importe ese día.</small></p>` : ''}
+    <div class="fila">
+      <label class="campo"><span>Tipo</span><select data-campo="tipo"><option value="gasto" ${sel(m.tipo, 'gasto')}>Gasto</option><option value="ingreso" ${sel(m.tipo, 'ingreso')}>Ingreso</option></select></label>
+      <label class="campo"><span>Importe</span><input type="text" inputmode="decimal" data-campo="importe" value="${String(m.importe).replace('.', ',')}"></label>
+      <label class="campo"><span>Fecha</span><input type="date" data-campo="fecha" value="${m.fecha}"></label>
+    </div>
+    <div class="fila">
+      <label class="campo"><span>Categoría</span><select data-campo="categoria_id">${categoriasDe(m.tipo).map((c) => h`<option value="${c.id}" ${sel(c.id, m.categoria_id)}>${c.icono} ${c.nombre}</option>`)}</select></label>
+      <label class="campo"><span>Cuenta</span><select data-campo="cuenta_id"><option value="">Sin cuenta</option>${cuentasActivas().map((c) => h`<option value="${c.id}" ${sel(c.id, m.cuenta_id)}>${c.nombre} (${c.moneda})</option>`)}</select></label>
+      ${m.tipo === 'gasto' ? h`<label class="campo"><span>Medio de pago</span><select data-campo="medio_pago_id"><option value="">—</option>${S.catalogo.medios.map((md) => h`<option value="${md.id}" ${sel(md.id, m.medio_pago_id)}>${md.icono} ${md.nombre}</option>`)}</select></label>` : ''}
+    </div>
+    <label class="campo"><span>Nota</span><input type="text" data-campo="nota" maxlength="300" value="${m.nota}"></label>
+  </div>`;
+  const elegidos = items.filter((m) => m.incluir);
+  cont.innerHTML = h`<section class="panel" style="margin-top:16px">
+    <div class="panel-cab"><h2>${items.length ? `Encontré ${items.length} movimiento${items.length === 1 ? '' : 's'}` : 'No encontré movimientos'}</h2>
+      <button class="btn chico" id="descartar">Descartar</button></div>
+    ${avisos.length ? h`<div class="aviso-lectura">${avisos.map((a) => h`<p>${a}</p>`)}</div>` : ''}
+    ${items.length ? h`<p style="color:var(--gris);font-size:.9rem;margin-bottom:12px">Revisá los datos y corregí lo que haga falta. Después tocá Guardar.</p>
+      <div class="capturas-items">${items.map(tarjeta)}</div>
+      <p class="error-form" id="err-lote" hidden></p>
+      <button class="btn primario bloque" id="guardar-lote" style="margin-top:14px" ${elegidos.length ? '' : raw('disabled')}>Guardar ${elegidos.length} movimiento${elegidos.length === 1 ? '' : 's'}</button>` : ''}
+  </section>`.s;
+
+  $$('[data-item]', cont).forEach((card) => {
+    const m = items[Number(card.dataset.item)];
+    $$('[data-campo]', card).forEach((campo) => campo.addEventListener('change', () => {
+      const k = campo.dataset.campo;
+      if (k === 'incluir') m.incluir = campo.checked;
+      else if (k === 'tipo') {
+        m.tipo = campo.value;
+        const lista = categoriasDe(m.tipo);
+        m.categoria_id = (lista.find((c) => /^otros/i.test(c.nombre)) || lista[0] || {}).id;
+        if (m.tipo !== 'gasto') m.medio_pago_id = null;
+      } else if (k === 'importe') {
+        m.importe = parseImporte(campo.value);
+        $('.imp', card).textContent = signo(m);
+      } else if (['categoria_id', 'cuenta_id', 'medio_pago_id'].includes(k)) m[k] = campo.value ? Number(campo.value) : null;
+      else m[k] = campo.value;
+      if (k === 'incluir' || k === 'tipo') pintarLectura(cont); // cambia el total a guardar o la lista de categorías
+    }));
+  });
+  $('#descartar', cont).addEventListener('click', () => { capturasLeidas = null; cont.innerHTML = ''; });
+  const guardar = $('#guardar-lote', cont);
+  if (guardar) guardar.addEventListener('click', async () => {
+    const err = $('#err-lote', cont); err.hidden = true;
+    const malo = elegidos.findIndex((m) => !(m.importe > 0));
+    if (malo >= 0) { err.textContent = `Revisá el importe del movimiento ${items.indexOf(elegidos[malo]) + 1}.`; err.hidden = false; return; }
+    guardar.disabled = true;
+    try {
+      const r = await POST('/api/movimientos/lote', {
+        movimientos: elegidos.map((m) => ({
+          tipo: m.tipo, importe: m.importe, fecha: m.fecha, categoria_id: m.categoria_id, cuenta_id: m.cuenta_id,
+          medio_pago_id: m.tipo === 'gasto' ? m.medio_pago_id : null, nota: m.nota,
+        })),
+      });
+      capturasLeidas = null;
+      aviso(`Listo: se cargaron ${r.guardados} movimiento${r.guardados === 1 ? '' : 's'} a tu resumen`);
+      await cargarCatalogo();
+      location.hash = '#/inicio';
+    } catch (e) { err.textContent = e.message; err.hidden = false; guardar.disabled = false; }
+  });
+}
 
 // ---------- cuentas ----------
 const TIPOS_CUENTA = { efectivo: '💵 Efectivo', banco: '🏦 Cuenta bancaria', billetera: '📱 Billetera virtual', tarjeta: '💳 Tarjeta de crédito', inversion: '📈 Inversión' };
@@ -908,7 +1057,17 @@ VISTAS.admin = async (el) => {
         <label class="campo"><span>Frase de bienvenida</span><input type="text" name="eslogan" maxlength="120" value="${c.eslogan}"></label>
         <label class="campo"><span>Moneda para cuentas nuevas</span><select name="moneda_predeterminada">${S.catalogo.monedas.map((m) => h`<option ${m.codigo === c.moneda_predeterminada ? raw('selected') : ''}>${m.codigo}</option>`)}</select></label>
         <button type="submit" class="btn primario">Guardar ajustes</button>
-      </form>`;
+      </form>
+      <hr style="border:0;border-top:1px solid var(--linea);margin:24px 0">
+      <h2 style="margin-bottom:6px">Lectura de capturas</h2>
+      <p style="color:var(--gris);font-size:.9rem;margin-bottom:12px;max-width:62ch">Para leer fotos y capturas de comprobantes, la app usa Claude, la inteligencia artificial de Anthropic. Necesita una clave: entrá a console.anthropic.com, cargá crédito y creá una clave en <b>API Keys</b>. Cada captura cuesta alrededor de 3 centavos de dólar.</p>
+      <p style="margin-bottom:14px">Estado: ${c.lectura_capturas ? h`<span class="etiqueta">Activada</span>` : h`<span class="etiqueta off">Sin activar</span>`}</p>
+      ${c.lectura_por_servidor ? h`<p style="color:var(--gris);font-size:.9rem">La clave está configurada en el servidor.</p>`
+        : h`<form id="f-clave" novalidate style="max-width:520px">
+          <label class="campo"><span>${c.lectura_capturas ? 'Cambiar la clave de Claude' : 'Clave de Claude'}</span><input type="password" name="anthropic_api_key" autocomplete="off" placeholder="sk-ant-…"></label>
+          <p class="error-form" hidden></p>
+          <div class="fila compacta"><button type="submit" class="btn primario">Guardar clave</button>${c.lectura_capturas ? h`<button type="button" class="btn peligro" id="quitar-clave">Quitar clave</button>` : ''}</div>
+        </form>`}`;
   } else {
     const a = await GET('/api/admin/auditoria');
     const nombres = { registro: 'Registro', registro_principal: 'Creó la cuenta principal', crear_usuario: 'Creó usuario', editar_usuario: 'Editó usuario', reset_password: 'Generó clave temporal', eliminar_usuario: 'Eliminó usuario',
@@ -949,6 +1108,16 @@ VISTAS.admin = async (el) => {
   if (fa) enviarForm(fa, async (d) => {
     await PUT('/api/admin/configuracion', { ...d, registro_abierto: !!d.registro_abierto });
     S.publica = await GET('/api/config/publica'); aviso('Ajustes guardados');
+  });
+  const fc = $('#f-clave', el);
+  if (fc) enviarForm(fc, async (d) => {
+    if (!d.anthropic_api_key.trim()) throw new Error('Pegá la clave de Claude.');
+    await PUT('/api/admin/configuracion', { anthropic_api_key: d.anthropic_api_key });
+    aviso('Clave guardada: la lectura de capturas está activada'); recargar();
+  });
+  on('#quitar-clave', async () => {
+    if (!(await confirmar('Quitar la clave', 'La lectura de capturas se desactiva para todos hasta que cargues otra clave.', 'Quitar'))) return;
+    try { await PUT('/api/admin/configuracion', { anthropic_api_key: '' }); aviso('Clave quitada'); recargar(); } catch (e) { aviso(e.message, true); }
   });
 };
 function mostrarClave(nombre, email, clave) {

@@ -47,7 +47,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* ---------- estructura ---------- */
 .app { display: grid; grid-template-columns: 1fr; min-height: 100vh; }
 .lateral { display: none; }
-.principal { padding: 16px 16px 112px; max-width: 1080px; width: 100%; margin: 0 auto; }
+.principal { padding: 16px 16px 112px; max-width: 1080px; width: 100%; min-width: 0; margin: 0 auto; } /* min-width: 0 deja que tablas y pestañas se desplacen en lugar de ensanchar la página */
 .cabecera { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 4px 0 18px; flex-wrap: wrap; }
 .cabecera .controles { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .cabecera .controles select { width: auto; min-height: 42px; border-radius: 999px; padding: 0 12px; }
@@ -313,3 +313,15 @@ td.acciones { white-space: nowrap; text-align: right; }
 @supports (field-sizing: content) { .importe-grande input { width: auto; } }
 .kpi b { font-size: clamp(1.15rem, 5.2vw, 1.7rem); overflow-wrap: anywhere; }
 .grafico text { font-size: 15px; }
+
+/* ---------- capturas ---------- */
+.atajos .ancho { grid-column: 1 / -1; }
+.capturas-items { display: grid; gap: 12px; }
+.captura-item { border: 1px solid var(--linea); border-radius: var(--radio); padding: 14px; }
+.captura-item.excluida { opacity: .55; }
+.captura-item .cab { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.captura-item .cab .check { margin: 0; }
+.captura-item .cab .imp { font-family: var(--display); font-size: 1.15rem; white-space: nowrap; }
+.captura-item .campo { margin-bottom: 10px; }
+.aviso-lectura { background: var(--papel); border-radius: var(--radio-chico); padding: 10px 12px; margin-bottom: 12px; font-size: .9rem; color: var(--tinta-2); }
+.aviso-lectura p + p { margin-top: 6px; }

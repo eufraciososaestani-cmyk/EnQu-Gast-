@@ -235,3 +235,28 @@ test('configuración editable: categorías globales y registro cerrado', async (
   const aud = (await admin.get('/api/admin/auditoria')).data;
   assert.ok(aud.some((a) => a.accion === 'configuracion'));
 });
+
+test('guardar varios movimientos juntos: se guardan todos o ninguno', async () => {
+  const antes = (await ana.get('/api/movimientos?limit=500')).data.total;
+  const base = { tipo: 'gasto', categoria_id: cat.id, cuenta_id: cuentaAna, fecha: hoy };
+  let r = await ana.post('/api/movimientos/lote', { movimientos: [{ ...base, importe: 1200, nota: 'Kiosco' }, { ...base, importe: '3.500,50', nota: 'Farmacia' }] });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.equal(r.data.guardados, 2);
+  r = await ana.post('/api/movimientos/lote', { movimientos: [{ ...base, importe: 10 }, { ...base, importe: 0 }] });
+  assert.equal(r.status, 400);
+  assert.match(r.data.error, /Movimiento 2/);
+  assert.equal((await ana.get('/api/movimientos?limit=500')).data.total, antes + 2);
+  assert.equal((await admin.post('/api/movimientos/lote', { movimientos: [{ ...base, importe: 5 }] })).status, 400); // la cuenta es de Ana
+});
+
+test('capturas: sin clave de Claude la lectura avisa que no está activada', async () => {
+  if ((await ana.get('/api/capturas/estado')).data.activa) return; // el servidor de prueba tiene clave
+  const r = await ana.post('/api/capturas/leer', { imagen: 'data:image/png;base64,iVBORw0KGgo=' });
+  assert.equal(r.status, 503);
+  assert.match(r.data.error, /administrador/);
+  assert.equal((await ana.post('/api/capturas/leer', { imagen: 'no-es-imagen' })).status, 400);
+  const c = (await admin.get('/api/admin/configuracion')).data;
+  assert.equal(c.lectura_capturas, false);
+  assert.ok(!('anthropic_api_key' in c));
+  assert.equal((await admin.put('/api/admin/configuracion', { anthropic_api_key: 'cualquier-cosa' })).status, 400);
+});

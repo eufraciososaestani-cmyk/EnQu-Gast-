@@ -6,10 +6,13 @@
   "private": true,
   "scripts": {
     "start": "node server.js",
-    "test": "node --test --test-concurrency=1 test/api.test.js test/primer-uso.test.js"
+    "test": "node --test --test-concurrency=1 test/api.test.js test/primer-uso.test.js test/capturas.test.js"
   },
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.4.0",
     "pg": "^8.13.0"
   }
 }

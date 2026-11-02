@@ -53,7 +53,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method !== 'GET') {
       // Protección CSRF: las escrituras deben venir de la propia app (JSON + encabezado propio)
       if (req.headers['x-atg'] !== '1') throw new HttpError(403, 'Solicitud no permitida');
-      ctx.body = await readBody(req);
+      ctx.body = await readBody(req, pathname === '/api/capturas/leer' ? 8 * 1024 * 1024 : undefined); // las imágenes pesan más
       if (typeof ctx.body !== 'object' || Array.isArray(ctx.body) || ctx.body === null) throw new HttpError(400, 'Formato inválido');
     }
 

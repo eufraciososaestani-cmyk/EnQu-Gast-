@@ -29,11 +29,13 @@ test.before(async () => {
       pedidos.push({ pedido, headers: req.headers });
       const contexto = pedido.messages[0].content.find((b) => b.type === 'text').text;
       const idCat = (nombre) => Number(new RegExp(`(\\d+): ${nombre}`).exec(contexto)[1]);
+      const base = { categoria_nueva: '', icono: '', medio_pago_id: 0, cuenta_id: 0 };
       const salida = {
         movimientos: [
-          { tipo: 'gasto', importe: 15000.5, moneda: 'ARS', fecha: '2026-10-28', descripcion: 'Carrefour', categoria_id: idCat('Supermercado'), medio_pago_id: 0, cuenta_id: 0 },
-          { tipo: 'ingreso', importe: 250000, moneda: 'ARS', fecha: '', descripcion: 'Transferencia de Juan', categoria_id: idCat('Combustible'), medio_pago_id: 3, cuenta_id: 99999 },
-          { tipo: 'gasto', importe: -0, moneda: 'ARS', fecha: '2026-10-28', descripcion: 'basura', categoria_id: 1, medio_pago_id: 0, cuenta_id: 0 },
+          { ...base, tipo: 'gasto', importe: 15000.5, moneda: 'ARS', fecha: '2026-10-28', descripcion: 'Carrefour', categoria_id: idCat('Supermercado') },
+          { ...base, tipo: 'gasto', importe: 4500, moneda: 'ARS', fecha: '2026-10-29', descripcion: 'Uber a Palermo', categoria_id: idCat('Transporte'), categoria_nueva: 'uber', icono: '🚗' },
+          { ...base, tipo: 'ingreso', importe: 250000, moneda: 'ARS', fecha: '', descripcion: 'Transferencia de Juan', categoria_id: idCat('Combustible'), medio_pago_id: 3, cuenta_id: 99999 },
+          { ...base, tipo: 'gasto', importe: -0, moneda: 'ARS', fecha: '2026-10-28', descripcion: 'basura', categoria_id: 1 },
         ],
         aviso: '',
       };
@@ -67,8 +69,9 @@ test('el admin activa la lectura con su clave y una captura se convierte en movi
   assert.ok(!('anthropic_api_key' in r.data));
   assert.equal((await admin.req('GET', '/api/capturas/estado')).data.activa, true);
 
+  // La captura se lee y se guarda sola; lo que la persona aclara viaja a Claude
   pedidos = [];
-  r = await admin.req('POST', '/api/capturas/leer', { imagen: 'data:image/jpeg;base64,/9j/4AAQSkZJRg==' });
+  r = await admin.req('POST', '/api/capturas/leer', { imagen: 'data:image/jpeg;base64,/9j/4AAQSkZJRg==', aclaracion: 'Uber' });
   assert.equal(r.status, 200, JSON.stringify(r.data));
   const { pedido, headers } = pedidos[0];
   assert.equal(pedido.model, 'claude-opus-5-5');
@@ -76,22 +79,39 @@ test('el admin activa la lectura con su clave y una captura se convierte en movi
   assert.match(headers['anthropic-beta'], /server-side-fallback-2026-07-01/);
   assert.equal(pedido.output_config.format.type, 'json_schema');
   assert.equal(pedido.messages[0].content[0].source.media_type, 'image/jpeg');
+  assert.match(pedido.messages[0].content[1].text, /aclaró de qué es: «Uber»/);
 
-  const [gasto, ingreso, ...resto] = r.data.movimientos;
-  assert.equal(resto.length, 0); // el importe en cero se descarta
-  assert.equal(gasto.importe, 15000.5);
-  assert.equal(gasto.fecha, '2026-10-28');
-  assert.equal(gasto.nota, 'Carrefour');
-  assert.ok(gasto.cuenta_id, 'se elige la cuenta de efectivo');
+  assert.equal(r.data.guardados.length, 3); // el importe en cero se descarta
+  assert.deepEqual(r.data.categorias_nuevas, ['Uber']);
+  assert.equal(r.data.repetidos.length, 0);
+  const porNota = (lista, nota) => lista.find((m) => m.nota === nota);
+  const super_ = porNota(r.data.guardados, 'Carrefour');
+  assert.equal(super_.importe, 15000.5);
+  assert.equal(super_.fecha, '2026-10-28');
+  assert.equal(super_.categoria, 'Supermercado');
+  assert.equal(super_.cuenta, 'Efectivo'); // se elige la cuenta de efectivo
+  const uber = porNota(r.data.guardados, 'Uber a Palermo');
+  assert.equal(uber.categoria, 'Uber'); // sección nueva, con su ícono
+  assert.equal(uber.categoria_icono, '🚗');
+  const ingreso = porNota(r.data.guardados, 'Transferencia de Juan');
   assert.equal(ingreso.medio_pago_id, null); // los ingresos no llevan medio de pago
-  assert.notEqual(ingreso.categoria_id, gasto.categoria_id); // una categoría de gasto no sirve para un ingreso
+  assert.notEqual(ingreso.categoria, 'Combustible'); // una categoría de gasto no sirve para un ingreso
   assert.match(ingreso.fecha, /^\d{4}-\d{2}-\d{2}$/); // sin fecha, se usa la de hoy
-  assert.notEqual(ingreso.cuenta_id, 99999); // una cuenta ajena no se acepta
+  assert.equal(ingreso.cuenta, 'Efectivo'); // una cuenta ajena no se acepta
+  const ids = r.data.guardados.map((m) => m.id);
+  assert.equal((await admin.req('GET', '/api/movimientos?ids=' + ids.join(','))).data.total, 3);
 
-  r = await admin.req('POST', '/api/movimientos/lote', { movimientos: [gasto, ingreso] });
-  assert.equal(r.status, 200, JSON.stringify(r.data));
+  // La misma captura otra vez: no se guarda nada, todo vuelve como repetido y la sección Uber no se duplica
   r = await admin.req('POST', '/api/capturas/leer', { imagen: 'data:image/jpeg;base64,/9j/4AAQSkZJRg==' });
-  assert.equal(r.data.movimientos[0].posible_repetido, true); // la misma captura otra vez se marca como repetida
+  assert.equal(r.data.guardados.length, 0);
+  assert.equal(r.data.repetidos.length, 3);
+  assert.deepEqual(r.data.categorias_nuevas, []);
+  assert.equal(porNota(r.data.repetidos, 'Uber a Palermo').categoria_id, uber.categoria_id);
+  const cat = (await admin.req('GET', '/api/catalogo')).data.categorias;
+  assert.equal(cat.filter((c) => c.nombre === 'Uber').length, 1);
+  r = await admin.req('POST', '/api/movimientos/lote', { movimientos: [porNota(r.data.repetidos, 'Carrefour')] }); // "Cargar igual"
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.equal(r.data.ids.length, 1);
 
   // Un resumen en PDF viaja como documento, no como imagen
   pedidos = [];

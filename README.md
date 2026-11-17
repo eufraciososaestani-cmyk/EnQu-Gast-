@@ -23,26 +23,28 @@ La cuenta de administrador es la del correo definido en `ADMIN_EMAIL` (si no est
 
 ## Cargar capturas
 
-En la pestaña **Capturas** (abajo, en el celular) tocás **Elegir fotos, capturas o PDF**, elegís uno o varios archivos y la app:
+En la pestaña **Capturas** (abajo, en el celular) tocás **Subir fotos, capturas o PDF**, elegís uno o varios archivos y la app:
 
 1. Lee cada archivo con Claude, la inteligencia artificial de Anthropic, y encuentra los gastos e ingresos: importe, fecha, comercio, categoría y medio de pago. En los resúmenes de tarjeta carga cada consumo, impuesto e interés, y deja afuera saldos, totales y el pago del resumen anterior; de las compras en cuotas carga solo la cuota del mes.
-2. Te muestra lo que encontró para que lo revises y corrijas. Si ya tenías un movimiento igual ese día, lo marca como **posible repetido** y no lo tilda.
-3. Con **Guardar**, quedan cargados en tu resumen, tus estadísticas y tus presupuestos, como cualquier otro movimiento.
+2. Los **carga sola** en tu resumen, cada uno en su sección. Si el comprobante es de una app o servicio (Uber, Cabify, PedidosYa, Netflix…), crea la sección con su nombre, por ejemplo **🚗 Uber**, y las próximas capturas de esa app van directo ahí.
+3. Te muestra lo que cargó: tocás uno para corregirlo, o **Deshacer** para borrar esa carga. Si ya tenías un movimiento igual ese día, no lo carga y te pregunta (**Cargar igual**).
 
-Las imágenes y los PDF (hasta 10 MB) no se guardan: solo los datos que confirmás.
+Antes de subir podés escribir **¿De qué es?** (por ejemplo "Uber" o "almuerzo con clientes"): la app lo tiene en cuenta y, si es una sección que no existe, la crea.
 
-**Activarla (una sola vez, el administrador):**
+Las imágenes y los PDF (hasta 10 MB) no se guardan: solo los datos.
 
-1. Entrá a https://console.anthropic.com, creá una cuenta y cargá crédito (**Billing**).
-2. En **API Keys**, creá una clave (empieza con `sk-ant-`).
-3. En EnQuéGasté: **Administración → Ajustes → Lectura de capturas**, pegá la clave y tocá **Guardar clave**. La app comprueba que funcione antes de guardarla.
+**Activarla (una sola vez, el administrador):** en la misma pestaña **Capturas** aparecen los pasos:
+
+1. Entrá a https://console.anthropic.com, creá una cuenta y cargá crédito (**Settings → Billing**).
+2. En **API Keys → Create Key**, creá una clave (empieza con `sk-ant-`).
+3. Pegala en la pestaña **Capturas** y tocá **Activar**. La app comprueba que funcione antes de guardarla. También se puede cambiar o quitar en **Administración → Ajustes**.
 
 Cada captura cuesta alrededor de 3 centavos de dólar y se cobra en la cuenta de Anthropic. Cada persona puede leer hasta 40 capturas por hora. También se puede configurar la clave en el servidor con la variable `ANTHROPIC_API_KEY`.
 
 ## Qué incluye
 
 - Carga rápida de gastos e ingresos (importe, categoría, medio de pago, guardar) y transferencias entre cuentas.
-- **Cargar capturas:** subís fotos, capturas de pantalla o PDF de tickets, transferencias, Mercado Pago, home banking o resúmenes de tarjeta, y la app lee los gastos e ingresos y los deja listos para guardar en tu resumen.
+- **Cargar capturas:** subís fotos, capturas de pantalla o PDF de tickets, Uber, transferencias, Mercado Pago, home banking o resúmenes de tarjeta, y la app lee los gastos con inteligencia artificial y los carga sola en tu resumen, cada uno en su sección.
 - Cuentas: efectivo, banco, billetera virtual, tarjeta de crédito e inversión, en distintas monedas, con saldo calculado.
 - Inicio con saldo disponible, ingresos y gastos del mes, gastos por categoría, presupuestos y próximos vencimientos.
 - Movimientos con búsqueda y filtros (mes, tipo, categoría, cuenta) y descarga en CSV (abre en Excel).

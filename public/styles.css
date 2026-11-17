@@ -316,12 +316,8 @@ td.acciones { white-space: nowrap; text-align: right; }
 
 /* ---------- capturas ---------- */
 .atajos .ancho { grid-column: 1 / -1; }
-.capturas-items { display: grid; gap: 12px; }
-.captura-item { border: 1px solid var(--linea); border-radius: var(--radio); padding: 14px; }
-.captura-item.excluida { opacity: .55; }
-.captura-item .cab { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
-.captura-item .cab .check { margin: 0; }
-.captura-item .cab .imp { font-family: var(--display); font-size: 1.15rem; white-space: nowrap; }
-.captura-item .campo { margin-bottom: 10px; }
+.activar { border: 2px solid var(--moneda); border-radius: var(--radio); padding: 16px; }
+.activar ol { margin: 0 0 14px; padding-left: 20px; display: grid; gap: 6px; font-size: .95rem; }
+.activar a { font-weight: 700; }
 .aviso-lectura { background: var(--papel); border-radius: var(--radio-chico); padding: 10px 12px; margin-bottom: 12px; font-size: .9rem; color: var(--tinta-2); }
 .aviso-lectura p + p { margin-top: 6px; }

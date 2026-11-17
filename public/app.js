@@ -624,125 +624,123 @@ function prepararArchivo(archivo) {
   });
 }
 
-let capturasLeidas = null; // lo último que se leyó, hasta que se guarda o se descarta
+let capturasLeidas = null; // lo último que se cargó desde capturas, hasta que se toca "Listo"
 VISTAS.capturas = async (el) => {
   const { activa } = await GET('/api/capturas/estado');
+  const activar = h`<div class="activar">
+    <h2 style="margin-bottom:6px">Activá la lectura con inteligencia artificial</h2>
+    <p style="color:var(--gris);font-size:.92rem;margin-bottom:10px">Se hace una sola vez. La app usa Claude, la IA de Anthropic, y necesita una clave a tu nombre:</p>
+    <ol>
+      <li>Entrá a <a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a> y creá una cuenta.</li>
+      <li>Cargá crédito en <b>Settings → Billing</b>. Con US$5 alcanza para unas 150 capturas.</li>
+      <li>En <b>API Keys → Create Key</b> creá una clave y copiala. Empieza con <b>sk-ant-</b>.</li>
+      <li>Pegala acá y tocá <b>Activar</b>.</li>
+    </ol>
+    <form id="f-activar" novalidate>
+      <label class="campo"><span>Clave de Claude</span><input type="password" name="anthropic_api_key" autocomplete="off" placeholder="sk-ant-…"></label>
+      <p class="error-form" hidden></p>
+      <button type="submit" class="btn primario bloque">Activar</button>
+    </form>
+  </div>`;
   el.innerHTML = h`
     ${cabecera('Cargar capturas')}
     <section class="panel">
-      <p style="margin-bottom:14px">Subí fotos, capturas de pantalla o PDF de tus comprobantes: tickets, transferencias, Mercado Pago, home banking o resúmenes de tarjeta. La app lee los gastos e ingresos y te los deja listos para sumar a tu resumen.</p>
-      ${activa ? h`<input type="file" id="archivos" accept="image/*,application/pdf" multiple hidden>
-        <button class="btn moneda bloque" id="elegir" style="min-height:52px">📷 Elegir fotos, capturas o PDF</button>
+      <p style="margin-bottom:14px">Subí fotos, capturas de pantalla o PDF de tus comprobantes: tickets, Uber, transferencias, Mercado Pago, home banking o resúmenes de tarjeta. La app los lee con inteligencia artificial y carga los gastos solos en tu resumen, cada uno en su sección.</p>
+      ${activa ? h`
+        <label class="campo"><span>¿De qué es? (opcional)</span><input type="text" id="aclaracion" maxlength="80" placeholder="Ej.: Uber, Netflix, almuerzo con clientes"><small>Si lo escribís, se carga en esa sección (si no existe, se crea). Si no, la app se da cuenta sola.</small></label>
+        <input type="file" id="archivos" accept="image/*,application/pdf" multiple hidden>
+        <button class="btn moneda bloque" id="elegir" style="min-height:52px">📷 Subir fotos, capturas o PDF</button>
         <p style="color:var(--gris);font-size:.85rem;margin-top:8px;text-align:center">Podés elegir varios a la vez.</p>`
-      : h`<p class="vacio" style="padding:10px">${S.usuario.rol === 'admin'
-        ? h`La lectura automática todavía no está activada. Activala en <a href="#/admin" id="ir-ajustes">Administración → Ajustes</a>.`
-        : 'La lectura automática todavía no está activada. Pedíselo al administrador.'}</p>`}
+      : S.usuario.rol === 'admin' ? activar
+        : h`<p class="vacio" style="padding:10px">La lectura automática todavía no está activada. Pedíselo al administrador.</p>`}
     </section>
     <div id="lectura"></div>`.s;
   const cont = $('#lectura', el);
-  if (capturasLeidas) pintarLectura(cont);
-  const ir = $('#ir-ajustes', el); if (ir) ir.addEventListener('click', () => { pestanaAdmin = 'ajustes'; });
+  if (capturasLeidas) pintarResultado(cont).catch((e) => aviso(e.message, true));
+  const fa = $('#f-activar', el);
+  if (fa) enviarForm(fa, async (d) => {
+    if (!d.anthropic_api_key.trim()) throw new Error('Pegá la clave de Claude.');
+    await PUT('/api/admin/configuracion', { anthropic_api_key: d.anthropic_api_key });
+    aviso('¡Listo! La lectura de capturas está activada'); recargar();
+  });
   if (!activa) return;
   const input = $('#archivos', el), boton = $('#elegir', el);
   boton.addEventListener('click', () => input.click());
   input.addEventListener('change', () => {
     const lista = [...input.files]; input.value = '';
-    if (lista.length) leerCapturas(lista, cont, boton);
+    if (lista.length) leerCapturas(lista, cont, boton, $('#aclaracion', el).value.trim());
   });
 };
 
-async function leerCapturas(archivos, cont, boton) {
+async function leerCapturas(archivos, cont, boton, aclaracion) {
   boton.disabled = true;
-  const items = [], avisos = [];
+  const res = { ids: [], repetidos: [], avisos: [], nuevas: [] };
   const quien = (archivo, texto) => (archivos.length > 1 ? `${archivo.name}: ${texto}` : texto);
   for (const [i, archivo] of archivos.entries()) {
-    cont.innerHTML = h`<section class="panel" style="margin-top:16px"><p class="cargando" role="status">Leyendo ${archivos.length > 1 ? `el archivo ${i + 1} de ${archivos.length}` : 'el archivo'}… puede tardar unos segundos (un resumen largo, hasta un minuto).</p></section>`.s;
+    cont.innerHTML = h`<section class="panel" style="margin-top:16px"><p class="cargando" role="status">Leyendo ${archivos.length > 1 ? `el archivo ${i + 1} de ${archivos.length}` : 'el archivo'} y cargando los gastos… puede tardar unos segundos (un resumen largo, hasta un minuto).</p></section>`.s;
     try {
-      const r = await POST('/api/capturas/leer', { imagen: await prepararArchivo(archivo) });
-      for (const m of r.movimientos) items.push({ ...m, incluir: !m.posible_repetido });
-      if (r.aviso) avisos.push(quien(archivo, r.aviso));
-      else if (!r.movimientos.length) avisos.push(quien(archivo, 'no encontré movimientos de dinero.'));
+      const r = await POST('/api/capturas/leer', { imagen: await prepararArchivo(archivo), aclaracion });
+      res.ids.push(...r.guardados.map((m) => m.id));
+      res.repetidos.push(...r.repetidos);
+      res.nuevas.push(...r.categorias_nuevas);
+      if (r.aviso) res.avisos.push(quien(archivo, r.aviso));
+      else if (!r.guardados.length && !r.repetidos.length) res.avisos.push(quien(archivo, 'no encontré movimientos de dinero.'));
     } catch (e) {
-      avisos.push(quien(archivo, e.message));
+      res.avisos.push(quien(archivo, e.message));
       if (e.sinConexion) break;
     }
   }
   boton.disabled = false;
-  capturasLeidas = { items, avisos };
-  if (cont.isConnected) pintarLectura(cont);
+  capturasLeidas = res;
+  await cargarCatalogo().catch(() => {}); // puede haber secciones nuevas
+  if (cont.isConnected) await pintarResultado(cont);
 }
 
-function pintarLectura(cont) {
-  const { items, avisos } = capturasLeidas;
-  const sel = (a, b) => (a === b ? raw('selected') : '');
-  const signo = (m) => `${m.tipo === 'gasto' ? '−' : '+'}${dinero(m.importe || 0, m.moneda)}`;
-  const tarjeta = (m, i) => h`<div class="captura-item ${m.incluir ? '' : 'excluida'}" data-item="${i}">
-    <div class="cab">
-      <label class="check"><input type="checkbox" data-campo="incluir" ${m.incluir ? raw('checked') : ''}> Cargar este</label>
-      <b class="imp ${m.tipo}">${signo(m)}</b>
-    </div>
-    ${m.posible_repetido ? h`<p style="margin-bottom:10px"><span class="etiqueta alerta">Posible repetido</span> <small style="color:var(--gris)">Ya tenés un ${m.tipo} por ese importe ese día.</small></p>` : ''}
-    <div class="fila">
-      <label class="campo"><span>Tipo</span><select data-campo="tipo"><option value="gasto" ${sel(m.tipo, 'gasto')}>Gasto</option><option value="ingreso" ${sel(m.tipo, 'ingreso')}>Ingreso</option></select></label>
-      <label class="campo"><span>Importe</span><input type="text" inputmode="decimal" data-campo="importe" value="${String(m.importe).replace('.', ',')}"></label>
-      <label class="campo"><span>Fecha</span><input type="date" data-campo="fecha" value="${m.fecha}"></label>
-    </div>
-    <div class="fila">
-      <label class="campo"><span>Categoría</span><select data-campo="categoria_id">${categoriasDe(m.tipo).map((c) => h`<option value="${c.id}" ${sel(c.id, m.categoria_id)}>${c.icono} ${c.nombre}</option>`)}</select></label>
-      <label class="campo"><span>Cuenta</span><select data-campo="cuenta_id"><option value="">Sin cuenta</option>${cuentasActivas().map((c) => h`<option value="${c.id}" ${sel(c.id, m.cuenta_id)}>${c.nombre} (${c.moneda})</option>`)}</select></label>
-      ${m.tipo === 'gasto' ? h`<label class="campo"><span>Medio de pago</span><select data-campo="medio_pago_id"><option value="">—</option>${S.catalogo.medios.map((md) => h`<option value="${md.id}" ${sel(md.id, m.medio_pago_id)}>${md.icono} ${md.nombre}</option>`)}</select></label>` : ''}
-    </div>
-    <label class="campo"><span>Nota</span><input type="text" data-campo="nota" maxlength="300" value="${m.nota}"></label>
-  </div>`;
-  const elegidos = items.filter((m) => m.incluir);
+// Muestra lo que se cargó solo (se vuelve a pedir, así refleja las correcciones) y los posibles repetidos
+async function pintarResultado(cont) {
+  const res = capturasLeidas;
+  const guardados = res.ids.length ? (await GET('/api/movimientos?' + new URLSearchParams({ ids: res.ids.join(','), limit: 500 }))).items : [];
+  const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`;
+  const filaRepetido = (m, i) => {
+    const c = cat(m.categoria_id) || {};
+    return h`<li><div class="mov" style="cursor:default">
+      <span class="avatar" style="background:${c.color || '#7a8b84'}22" aria-hidden="true">${c.icono || '🏷️'}</span>
+      <span class="det"><b>${c.nombre || 'Sin categoría'}</b><span>${[m.nota, fechaCorta(m.fecha)].filter(Boolean).join(' · ')}</span></span>
+      <span style="display:flex;flex-direction:column;gap:6px;align-items:flex-end"><span class="imp ${m.tipo}">${m.tipo === 'gasto' ? '−' : '+'}${dinero(m.importe, m.moneda)}</span>
+        <button class="btn chico" data-cargar-igual="${i}">Cargar igual</button></span>
+    </div></li>`;
+  };
   cont.innerHTML = h`<section class="panel" style="margin-top:16px">
-    <div class="panel-cab"><h2>${items.length ? `Encontré ${items.length} movimiento${items.length === 1 ? '' : 's'}` : 'No encontré movimientos'}</h2>
-      <button class="btn chico" id="descartar">Descartar</button></div>
-    ${avisos.length ? h`<div class="aviso-lectura">${avisos.map((a) => h`<p>${a}</p>`)}</div>` : ''}
-    ${items.length ? h`<p style="color:var(--gris);font-size:.9rem;margin-bottom:12px">Revisá los datos y corregí lo que haga falta. Después tocá Guardar.</p>
-      <div class="capturas-items">${items.map(tarjeta)}</div>
-      <p class="error-form" id="err-lote" hidden></p>
-      <button class="btn primario bloque" id="guardar-lote" style="margin-top:14px" ${elegidos.length ? '' : raw('disabled')}>Guardar ${elegidos.length} movimiento${elegidos.length === 1 ? '' : 's'}</button>` : ''}
+    <div class="panel-cab"><h2>${guardados.length ? `Listo: cargué ${plural(guardados.length, 'movimiento', 'movimientos')}` : 'No se cargó ningún movimiento'}</h2>
+      ${guardados.length ? h`<button class="btn chico" id="deshacer">Deshacer</button>` : ''}</div>
+    ${res.nuevas.length ? h`<p class="aviso-lectura">Creé ${res.nuevas.length === 1 ? 'la sección' : 'las secciones'} <b>${res.nuevas.join(', ')}</b>: ahí vas a ver estos gastos en el inicio y en estadísticas.</p>` : ''}
+    ${res.avisos.length ? h`<div class="aviso-lectura">${res.avisos.map((a) => h`<p>${a}</p>`)}</div>` : ''}
+    ${guardados.length ? h`<p style="color:var(--gris);font-size:.9rem;margin-bottom:6px">Tocá uno si querés corregirlo.</p>${listaPorDia(guardados)}` : ''}
+    ${res.repetidos.length ? h`<h3 style="margin:18px 0 4px">${res.repetidos.length === 1 ? 'Parece repetido' : 'Parecen repetidos'}</h3>
+      <p style="color:var(--gris);font-size:.9rem;margin-bottom:6px">Ya tenías un movimiento igual ese día, así que no ${res.repetidos.length === 1 ? 'lo cargué' : 'los cargué'}.</p>
+      <ul class="lista-mov">${res.repetidos.map(filaRepetido)}</ul>` : ''}
+    <div class="fila" style="margin-top:16px"><a class="btn primario" href="#/inicio">Ver mi resumen</a><button class="btn" id="listo">Listo</button></div>
   </section>`.s;
 
-  $$('[data-item]', cont).forEach((card) => {
-    const m = items[Number(card.dataset.item)];
-    $$('[data-campo]', card).forEach((campo) => campo.addEventListener('change', () => {
-      const k = campo.dataset.campo;
-      if (k === 'incluir') m.incluir = campo.checked;
-      else if (k === 'tipo') {
-        m.tipo = campo.value;
-        const lista = categoriasDe(m.tipo);
-        m.categoria_id = (lista.find((c) => /^otros/i.test(c.nombre)) || lista[0] || {}).id;
-        if (m.tipo !== 'gasto') m.medio_pago_id = null;
-      } else if (k === 'importe') {
-        m.importe = parseImporte(campo.value);
-        $('.imp', card).textContent = signo(m);
-      } else if (['categoria_id', 'cuenta_id', 'medio_pago_id'].includes(k)) m[k] = campo.value ? Number(campo.value) : null;
-      else m[k] = campo.value;
-      if (k === 'incluir' || k === 'tipo') pintarLectura(cont); // cambia el total a guardar o la lista de categorías
-    }));
-  });
-  $('#descartar', cont).addEventListener('click', () => { capturasLeidas = null; cont.innerHTML = ''; });
-  const guardar = $('#guardar-lote', cont);
-  if (guardar) guardar.addEventListener('click', async () => {
-    const err = $('#err-lote', cont); err.hidden = true;
-    const malo = elegidos.findIndex((m) => !(m.importe > 0));
-    if (malo >= 0) { err.textContent = `Revisá el importe del movimiento ${items.indexOf(elegidos[malo]) + 1}.`; err.hidden = false; return; }
-    guardar.disabled = true;
+  $$('[data-mov]', cont).forEach((b) => b.addEventListener('click', () => abrirMovimiento(Number(b.dataset.mov))));
+  $('#listo', cont).addEventListener('click', () => { capturasLeidas = null; cont.innerHTML = ''; });
+  const deshacer = $('#deshacer', cont);
+  if (deshacer) deshacer.addEventListener('click', async () => {
+    if (!(await confirmar('Deshacer la carga', `Se borran los ${plural(guardados.length, 'movimiento', 'movimientos')} que se acaban de cargar.`, 'Deshacer'))) return;
     try {
-      const r = await POST('/api/movimientos/lote', {
-        movimientos: elegidos.map((m) => ({
-          tipo: m.tipo, importe: m.importe, fecha: m.fecha, categoria_id: m.categoria_id, cuenta_id: m.cuenta_id,
-          medio_pago_id: m.tipo === 'gasto' ? m.medio_pago_id : null, nota: m.nota,
-        })),
-      });
-      capturasLeidas = null;
-      aviso(`Listo: se cargaron ${r.guardados} movimiento${r.guardados === 1 ? '' : 's'} a tu resumen`);
-      await cargarCatalogo();
-      location.hash = '#/inicio';
-    } catch (e) { err.textContent = e.message; err.hidden = false; guardar.disabled = false; }
+      for (const m of guardados) await DEL('/api/movimientos/' + m.id);
+      capturasLeidas = null; aviso('Carga deshecha'); await cargarCatalogo(); recargar();
+    } catch (e) { aviso(e.message, true); recargar(); }
   });
+  $$('[data-cargar-igual]', cont).forEach((b) => b.addEventListener('click', async () => {
+    const i = Number(b.dataset.cargarIgual), m = res.repetidos[i];
+    b.disabled = true;
+    try {
+      const r = await POST('/api/movimientos/lote', { movimientos: [{ tipo: m.tipo, importe: m.importe, fecha: m.fecha, categoria_id: m.categoria_id, cuenta_id: m.cuenta_id, medio_pago_id: m.medio_pago_id, nota: m.nota }] });
+      res.ids.push(...r.ids); res.repetidos.splice(i, 1);
+      aviso('Cargado'); await pintarResultado(cont);
+    } catch (e) { aviso(e.message, true); b.disabled = false; }
+  }));
 }
 
 // ---------- cuentas ----------

@@ -93,6 +93,14 @@ test('el admin activa la lectura con su clave y una captura se convierte en movi
   r = await admin.req('POST', '/api/capturas/leer', { imagen: 'data:image/jpeg;base64,/9j/4AAQSkZJRg==' });
   assert.equal(r.data.movimientos[0].posible_repetido, true); // la misma captura otra vez se marca como repetida
 
+  // Un resumen en PDF viaja como documento, no como imagen
+  pedidos = [];
+  r = await admin.req('POST', '/api/capturas/leer', { imagen: 'data:application/pdf;base64,JVBERi0xLjQK' });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.deepEqual(pedidos[0].pedido.messages[0].content[0].source, { type: 'base64', media_type: 'application/pdf', data: 'JVBERi0xLjQK' });
+  assert.equal(pedidos[0].pedido.messages[0].content[0].type, 'document');
+  assert.equal((await admin.req('POST', '/api/capturas/leer', { imagen: 'data:text/plain;base64,aG9sYQ==' })).status, 400);
+
   r = await admin.req('PUT', '/api/admin/configuracion', { anthropic_api_key: '' });
   assert.equal(r.data.lectura_capturas, false);
 });

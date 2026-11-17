@@ -611,16 +611,29 @@ function achicarImagen(archivo, lado = 1568) {
   });
 }
 
+// Los PDF (por ejemplo, resúmenes de tarjeta) viajan tal cual; las imágenes se achican antes.
+function prepararArchivo(archivo) {
+  const esPdf = archivo.type === 'application/pdf' || /\.pdf$/i.test(archivo.name);
+  if (!esPdf) return achicarImagen(archivo);
+  if (archivo.size > 10 * 1024 * 1024) return Promise.reject(new Error('El PDF pesa más de 10 MB. Subilo en partes o como capturas.'));
+  return new Promise((resolve, reject) => {
+    const lector = new FileReader();
+    lector.onerror = () => reject(new Error('No se pudo abrir el PDF.'));
+    lector.onload = () => resolve(String(lector.result).replace(/^data:[^;,]*;base64,/, 'data:application/pdf;base64,'));
+    lector.readAsDataURL(archivo);
+  });
+}
+
 let capturasLeidas = null; // lo último que se leyó, hasta que se guarda o se descarta
 VISTAS.capturas = async (el) => {
   const { activa } = await GET('/api/capturas/estado');
   el.innerHTML = h`
     ${cabecera('Cargar capturas')}
     <section class="panel">
-      <p style="margin-bottom:14px">Subí fotos o capturas de pantalla de tus comprobantes: tickets, transferencias, Mercado Pago, home banking o resúmenes de tarjeta. La app lee los gastos e ingresos y te los deja listos para sumar a tu resumen.</p>
-      ${activa ? h`<input type="file" id="archivos" accept="image/*" multiple hidden>
-        <button class="btn moneda bloque" id="elegir" style="min-height:52px">📷 Elegir fotos o capturas</button>
-        <p style="color:var(--gris);font-size:.85rem;margin-top:8px;text-align:center">Podés elegir varias a la vez.</p>`
+      <p style="margin-bottom:14px">Subí fotos, capturas de pantalla o PDF de tus comprobantes: tickets, transferencias, Mercado Pago, home banking o resúmenes de tarjeta. La app lee los gastos e ingresos y te los deja listos para sumar a tu resumen.</p>
+      ${activa ? h`<input type="file" id="archivos" accept="image/*,application/pdf" multiple hidden>
+        <button class="btn moneda bloque" id="elegir" style="min-height:52px">📷 Elegir fotos, capturas o PDF</button>
+        <p style="color:var(--gris);font-size:.85rem;margin-top:8px;text-align:center">Podés elegir varios a la vez.</p>`
       : h`<p class="vacio" style="padding:10px">${S.usuario.rol === 'admin'
         ? h`La lectura automática todavía no está activada. Activala en <a href="#/admin" id="ir-ajustes">Administración → Ajustes</a>.`
         : 'La lectura automática todavía no está activada. Pedíselo al administrador.'}</p>`}
@@ -643,9 +656,9 @@ async function leerCapturas(archivos, cont, boton) {
   const items = [], avisos = [];
   const quien = (archivo, texto) => (archivos.length > 1 ? `${archivo.name}: ${texto}` : texto);
   for (const [i, archivo] of archivos.entries()) {
-    cont.innerHTML = h`<section class="panel" style="margin-top:16px"><p class="cargando" role="status">Leyendo ${archivos.length > 1 ? `la captura ${i + 1} de ${archivos.length}` : 'la captura'}… puede tardar unos segundos.</p></section>`.s;
+    cont.innerHTML = h`<section class="panel" style="margin-top:16px"><p class="cargando" role="status">Leyendo ${archivos.length > 1 ? `el archivo ${i + 1} de ${archivos.length}` : 'el archivo'}… puede tardar unos segundos (un resumen largo, hasta un minuto).</p></section>`.s;
     try {
-      const r = await POST('/api/capturas/leer', { imagen: await achicarImagen(archivo) });
+      const r = await POST('/api/capturas/leer', { imagen: await prepararArchivo(archivo) });
       for (const m of r.movimientos) items.push({ ...m, incluir: !m.posible_repetido });
       if (r.aviso) avisos.push(quien(archivo, r.aviso));
       else if (!r.movimientos.length) avisos.push(quien(archivo, 'no encontré movimientos de dinero.'));

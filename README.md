@@ -23,13 +23,13 @@ La cuenta de administrador es la del correo definido en `ADMIN_EMAIL` (si no est
 
 ## Cargar capturas
 
-En la pestaña **Capturas** (abajo, en el celular) tocás **Elegir fotos o capturas**, elegís una o varias imágenes y la app:
+En la pestaña **Capturas** (abajo, en el celular) tocás **Elegir fotos, capturas o PDF**, elegís uno o varios archivos y la app:
 
-1. Lee cada imagen con Claude, la inteligencia artificial de Anthropic, y encuentra los gastos e ingresos: importe, fecha, comercio, categoría y medio de pago.
+1. Lee cada archivo con Claude, la inteligencia artificial de Anthropic, y encuentra los gastos e ingresos: importe, fecha, comercio, categoría y medio de pago. En los resúmenes de tarjeta carga cada consumo, impuesto e interés, y deja afuera saldos, totales y el pago del resumen anterior; de las compras en cuotas carga solo la cuota del mes.
 2. Te muestra lo que encontró para que lo revises y corrijas. Si ya tenías un movimiento igual ese día, lo marca como **posible repetido** y no lo tilda.
 3. Con **Guardar**, quedan cargados en tu resumen, tus estadísticas y tus presupuestos, como cualquier otro movimiento.
 
-Las imágenes no se guardan: solo los datos que confirmás.
+Las imágenes y los PDF (hasta 10 MB) no se guardan: solo los datos que confirmás.
 
 **Activarla (una sola vez, el administrador):**
 
@@ -42,7 +42,7 @@ Cada captura cuesta alrededor de 3 centavos de dólar y se cobra en la cuenta de
 ## Qué incluye
 
 - Carga rápida de gastos e ingresos (importe, categoría, medio de pago, guardar) y transferencias entre cuentas.
-- **Cargar capturas:** subís fotos o capturas de pantalla de tickets, transferencias, Mercado Pago, home banking o resúmenes de tarjeta, y la app lee los gastos e ingresos y los deja listos para guardar en tu resumen.
+- **Cargar capturas:** subís fotos, capturas de pantalla o PDF de tickets, transferencias, Mercado Pago, home banking o resúmenes de tarjeta, y la app lee los gastos e ingresos y los deja listos para guardar en tu resumen.
 - Cuentas: efectivo, banco, billetera virtual, tarjeta de crédito e inversión, en distintas monedas, con saldo calculado.
 - Inicio con saldo disponible, ingresos y gastos del mes, gastos por categoría, presupuestos y próximos vencimientos.
 - Movimientos con búsqueda y filtros (mes, tipo, categoría, cuenta) y descarga en CSV (abre en Excel).
@@ -109,6 +109,5 @@ render.yaml              configuración para publicar en Render
 ## Próximos pasos sugeridos
 
 - Recuperación de contraseña por correo (requiere un servicio de envío, como Resend).
-- Leer resúmenes de tarjeta en PDF, además de imágenes.
 - Resumen de tarjeta por período de cierre.
 - Cargar gastos sin conexión y sincronizarlos al volver internet.
